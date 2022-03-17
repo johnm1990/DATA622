@@ -1,0 +1,302 @@
+---
+title: "DATA622 Homework 1"
+author: "John Mazon"
+date: "3/16/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(fpp3)
+library(fpp2)
+library(zoo)
+library(USgas)
+library(sna)
+library(seasonal)
+library(latex2exp)
+library(stats)
+library(tsibble)
+library(tsibbledata)
+library(dplyr)
+library(feasts)
+library(tidyr)
+library(readxl)
+library(httr)
+library(forecast)
+library(fpp)
+library(lessR)
+library(PerformanceAnalytics)
+library(corrplot)
+library(VIM)
+library(kableExtra)
+library(rpart)
+library(rpart.plot)
+library(caret)
+library(randomForest)
+```
+
+## DATA622 Homework 1
+
+As the quiz that was part of the original content was discarded, here's a new assignment:
+Visit the following website and explore the range of sizes of this dataset (from 100 to 5 million records).
+https://eforexcel.com/wp/downloads-18-sample-csv-files-data-sets-for-testing-sales/ 
+Based on your computer's capabilities (memory, CPU), select 2 files you can handle (recommended one small, one large)
+Review the structure and content of the tables, and think which two machine learning algorithms presented so far could be used to analyze the data, and how can they be applied in the suggested environment of the datasets.
+Write a short essay explaining your selection. Then, select one of the 2 algorithms and explore how to analyze and predict an outcome based on the data available. This will be an exploratory exercise, so feel free to show errors and warnings that raise during the analysis. Test the code with both datasets selected and compare the results. Which result will you trust if you need to make a business decision? Do you think an analysis could be prone to errors when using too much data, or when using the least amount possible?
+Develop your exploratory analysis of the data and the essay in the following 2 weeks. You'll have until March 17 to submit both.
+
+
+## File Selection
+
+```{r}
+df_100_small <- read.csv("https://raw.githubusercontent.com/johnm1990/DATA622/main/100%20Sales%20Records.csv")
+df_1000_large <- read.csv("https://raw.githubusercontent.com/johnm1990/DATA622/main/10000%20Sales%20Records.csv")
+```
+
+## Exploratory Analysis
+First we start off by getting a glimpses of our data. Exploratory Data Analysis (EDA) is the process of analyzing and visualizing the data to get a better understanding of the data and glean insight from it. There are various steps involved when doing EDA but the following are the common steps that a data analyst can take when performing EDA:
+
+Import the data
+Clean the data
+Process the data
+Visualize the data
+
+
+EDA is not a formal process with a strict set of rules. More than anything, EDA is a state of mind. During the initial phases of EDA you should feel free to investigate every idea that occurs to you. Some of these ideas will pan out, and some will be dead ends. As your exploration continues, you will home in on a few particularly productive areas that you’ll eventually write up and communicate to others.
+
+EDA is an important part of any data analysis, even if the questions are handed to you on a platter, because you always need to investigate the quality of your data. Data cleaning is just one application of EDA: you ask questions about whether your data meets your expectations or not. To do data cleaning, you’ll need to deploy all the tools of EDA: visualisation, transformation, and modelling.
+
+```{r}
+glimpse(df_100_small)
+colnames(df_100_small)
+```
+
+
+```{r}
+glimpse(df_1000_large)
+```
+
+
+
+
+## Cleaning up the data
+
+```{r}
+# Conversions
+df_1000_large[['Order ID']] <- toString(df_1000_large[['Order.ID']])
+df_1000_large[['Region']] <- as.factor(df_1000_large[['Region']])
+df_1000_large[['Sales Channel']] <- as.factor(df_1000_large[['Sales.Channel']])
+df_1000_large[['Order Priority']] <- as.factor(df_1000_large[['Order.Priority']])
+df_1000_large[['Item Type']] <- as.factor(df_1000_large[['Item.Type']])
+df_1000_large[['Order Date']] <- as.Date(df_1000_large[['Order.Date']], "%m/%d/%Y")
+df_1000_large[['Ship Date']] <- as.Date(df_1000_large[['Ship.Date']], "%m/%d/%Y")
+df_1000_large[['Units Sold']] <- as.numeric(df_1000_large[['Units.Sold']])
+df_1000_large[['Unit Price']] <- as.numeric(df_1000_large[['Unit.Price']])
+df_1000_large[['Unit Cost']] <- as.numeric(df_1000_large[['Unit.Cost']])
+df_1000_large[['Total Revenue']] <- as.numeric(df_1000_large[['Total.Revenue']])
+df_1000_large[['Total Profit']] <- as.numeric(df_1000_large[['Total.Profit']])
+df_1000_large[['Total Cost']] <- as.numeric(df_1000_large[['Total.Cost']])
+
+
+
+df_100_small[['Order ID']] <- toString(df_100_small[['Order.ID']])
+df_100_small[['Region']] <- as.factor(df_100_small[['Region']])
+df_100_small[['Sales Channel']] <- as.factor(df_100_small[['Sales.Channel']])
+df_100_small[['Order Priority']] <- as.factor(df_100_small[['Order.Priority']])
+df_100_small[['Item Type']] <- as.factor(df_100_small[['Item.Type']])
+df_100_small[['Order Date']] <- as.Date(df_100_small[['Order.Date']], "%m/%d/%Y")
+df_100_small[['Ship Date']] <- as.Date(df_100_small[['Ship.Date']], "%m/%d/%Y")
+df_100_small[['Units Sold']] <- as.numeric(df_100_small[['Units.Sold']])
+df_100_small[['Unit Price']] <- as.numeric(df_100_small[['Unit.Price']])
+df_100_small[['Unit Cost']] <- as.numeric(df_100_small[['Unit.Cost']])
+df_100_small[['Total Revenue']] <- as.numeric(df_100_small[['Total.Revenue']])
+df_100_small[['Total Profit']] <- as.numeric(df_100_small[['Total.Profit']])
+df_100_small[['Total Cost']] <- as.numeric(df_100_small[['Total.Cost']])
+
+
+
+```
+
+
+Next we wish to get a summary of our data
+
+```{r}
+summary(df_100_small)
+```
+
+We can see that both our large dataset and small dataset have data ranging from newest 2017 to oldest 2010. 
+
+
+
+# Visualize
+
+Data visualization is the technique used to deliver insights in data using visual cues such as graphs, charts, maps, and many others. This is useful as it helps in intuitive and easy understanding of the large quantities of data and thereby make better decisions regarding it.
+Data Visualization in R Programming Language
+
+The various data visualization platforms have different capabilities, functionality, and use cases. They also require a different skill set. This article discusses the use of R for data visualization.
+
+R is a language that is designed for statistical computing, graphical data analysis, and scientific research. It is usually preferred for data visualization as it offers flexibility and minimum required coding through its packages.
+
+Visualiztion for large dataset
+```{r}
+hist(df_1000_large$`Total Profit`, col = 'green')
+
+```
+
+Visualiztion for small dataset
+```{r}
+hist(df_100_small$`Total Profit`, col = 'green')
+
+
+```
+
+
+
+
+## Algorithm Selections
+
+Split data into train and test in r, It is critical to partition the data into training and testing sets when using supervised learning algorithms such as Linear Regression, Random Forest, Naïve Bayes classification, Logistic Regression, and Decision Trees etc.
+
+We first train the model using the training dataset’s observations and then use it to predict from the testing dataset.
+
+Splitting helps to avoid overfitting and to improve the training dataset accuracy.
+
+
+Separating data into training and testing sets is an important part of evaluating data mining models. Typically, when you separate a data set into a training set and testing set, most of the data is used for training, and a smaller portion of the data is used for testing. Analysis Services randomly samples the data to help ensure that the testing and training sets are similar. By using similar data for training and testing, you can minimize the effects of data discrepancies and better understand the characteristics of the model.
+
+After a model has been processed by using the training set, you test the model by making predictions against the test set. Because the data in the testing set already contains known values for the attribute that you want to predict, it is easy to determine whether the model's guesses are correct.
+
+Finally, we need a model that can perform well on unknown data, therefore we utilize test data to test the trained model’s performance at the end.
+
+```{r}
+set.seed(555)
+
+
+df_sample <- sample(nrow(df_100_small), round(nrow(df_100_small)*0.75), replace = FALSE)
+df_100_small_train <- df_100_small[df_sample, ]
+df_100_small_test <- df_100_small[-df_sample, ]
+
+
+```
+
+## RANDOM FOREST
+A big part of machine learning is classification — we want to know what class (a.k.a. group) an observation belongs to. The ability to precisely classify observations is extremely valuable for various business applications like predicting whether a particular user will buy a product or forecasting whether a given loan will default or not.
+
+Data science provides a plethora of classification algorithms such as logistic regression, support vector machine, naive Bayes classifier, and decision trees. But near the top of the classifier hierarchy is the random forest classifier (there is also the random forest regressor but that is a topic for another day).
+
+A random forest is a supervised machine learning algorithm that is constructed from decision tree algorithms. This algorithm is applied in various industries such as banking and e-commerce to predict behavior and outcomes.
+
+A random forest is a machine learning technique that’s used to solve regression and classification problems. It utilizes ensemble learning, which is a technique that combines many classifiers to provide solutions to complex problems.
+
+A random forest algorithm consists of many decision trees. The ‘forest’ generated by the random forest algorithm is trained through bagging or bootstrap aggregating. Bagging is an ensemble meta-algorithm that improves the accuracy of machine learning algorithms.
+
+The (random forest) algorithm establishes the outcome based on the predictions of the decision trees. It predicts by taking the average or mean of the output from various trees. Increasing the number of trees increases the precision of the outcome.
+
+```{r}
+
+# Splitting the data 80/20
+set.seed(444)
+
+df_100_small.partition <- df_100_small$`Sales Channel` %>% 
+  createDataPartition(p = 0.8, list=FALSE)
+
+df_100_small_train.data <- df_100_small[df_100_small.partition,]
+df_100_small_test.data <- df_100_small[-df_100_small.partition,]
+
+
+colnames(df_100_small)
+df_100_small_random <- randomForest(`Sales Channel` ~ Region+Item.Type+Order.ID+Units.Sold+Unit.Price+Unit.Cost+Total.Revenue+Total.Cost+Total.Profit, data = df_100_small,importance = TRUE, na.omit=T)
+
+df_100_small_random
+varImpPlot(df_100_small_random)
+```
+
+```{r}
+
+#set.seed(111)
+
+#df_sample <- sample(nrow(df_100_small), round(nrow(df_100_small)*0.75), replace = FALSE)
+#small_train <- df_100_small[df_sample, ]
+#small_test <- df_100_small[-df_sample, ]
+
+#df_100_small_small_model <- rpart(Order.Priority ~ Region + Item.Type + Sales.Channel + Order.Date + Order.ID + Ship.Date + Units.Sold + #Total.Revenue + Total.Cost + Total.Profit , method = "class", data = small_train)
+
+#rpart.plot(df_100_small_small_model)
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            
+```
+
+
+
+## GLM
+some datasets are too large for pc to handle and have commented out for knit purpose
+
+Logistic regression is useful when you are predicting a binary outcome from a set of continuous predictor variables. It is frequently preferred over discriminant function analysis because of its less restrictive.  In statistics, binomial regression is a regression analysis technique in which the response (often referred to as Y) has a binomial distribution: it is the number of successes in a series of independent Bernoulli trials, where each trial has probability of success. The Binomial Regression model can be used for predicting the odds of seeing an event, given a vector of regression variables. For e.g. one could use the Binomial Regression model to predict the odds of its starting to rain in the next 2 hours, given the current temperature, humidity, barometric pressure, time of year, geo-location, altitude etc.In a Binomial Regression model, the dependent variable y is a discrete random variable that takes on values such as 0, 1, 5, 67 etc. Each value represents the number of ‘successes’ observed in m trials. Thus y follows the binomial distribution.
+
+```{r}
+
+glm.df.small<-glm(`Sales Channel` ~ Region + Country + Item.Type + Order.Priority +
+        Units.Sold + Unit.Price +
+          Unit.Cost + Total.Cost +
+          Total.Profit + Total.Revenue,data=df_100_small_train, family=binomial)
+
+summary(glm.df.small)
+
+```
+
+
+LARGE DATASET
+
+
+```{r}
+
+set.seed(999)
+
+
+df_sample <- sample(nrow(df_1000_large), round(nrow(df_1000_large)*0.75), replace = FALSE)
+df_1000_large_train <- df_1000_large[df_sample, ]
+df_1000_large_test <- df_1000_large[-df_sample, ]
+
+```
+
+
+```{r}
+
+#df_1000_large_model <- rpart(Order.Priority ~ Region + Item.Type + Sales.Channel + Order.Date + Order.ID + Ship.Date + Units.Sold + Total.Revenue + Total.Cost + Total.Profit , method = "class", #data = df_1000_large_train,control=rpart.control(minsplit=2, minbucket=3, cp=0.001))
+
+#rpart.plot(df_1000_large_model)
+```
+
+# accuracy of model
+The problem with the above metrics, is that they are sensible to the inclusion of additional variables in the model, even if those variables dont have significant contribution in explaining the outcome. Put in other words, including additional variables in the model will always increase the R2 and reduce the RMSE. So, we need a more robust metric to guide the model choice.
+
+Concerning R2, there is an adjusted version, called Adjusted R-squared, which adjusts the R2 for having too many variables in the model.
+
+Additionally, there are four other important metrics - AIC, AICc, BIC and Mallows Cp - that are commonly used for model evaluation and selection. These are an unbiased estimate of the model prediction error MSE. The lower these metrics, he better the model.
+
+```{r}
+
+#sum(diag(df_1000_large_train_large_pred)) / nrow(df_1000_large_train_large_test)
+
+```
+
+# Essay summarizing
+
+GLMs are useful when the range of your response variable is constrained and/or the variance is not constant or normally distributed. GLM models transform the response variable to allow the fit to be done by least squares. The transformation done on the response variable is defined by the link function. This transformation of the response may constrain the range of the response variable. The variance function specifies the relationship of the variance to the mean. In R, a family specifies the variance and link functions which are used in the model fit. As an example the “poisson” family uses the “log” link function and “μ
+” as the variance function. A GLM model is defined by both the formula and the family.
+GLM models can also be used to fit data in which the variance is proportional to one of the defined variance functions. This is done with quasi families, where Pearson’s χ2
+(“chi-squared”) is used to scale the variance. An example would be data in which the variance is proportional to the mean. This would use the “quasipoisson” family. This results in a variance function of αμ instead of 1μ as for Poisson distributed data. The quasi families allows inference to be done when your data is overdispersed or underdispersed, provided that the variance is proportional. GLM models have a defined relationship between the expected variance and the mean. This relationship can be used to evaluate the model’s goodness of fit to the data. The deviance can be used for this goodness of fit check. Under asymptotic conditions the deviance is expected to be χ2df distributed. Pearson’s χ2
+
+can also be used for this measure of goodness of fit, though technically it is the deviance which is minimized when fitting a GLM model.
+There are some limits to the goodness of fit evaluation.When the response data is binary, the deviance approximations are not even approximately correct.
+The deviance approximations are also not useful when there are small group sizes.
+The goodness of fit tests using deviance or Pearson’s χ2 are not applicable with a quasi family model.
+Residual plots are useful for some GLM models and much less useful for others. When residuals are useful in the evaluation a GLM model, the plot of Pearson residuals versus the fitted link values is typically the most helpful. The Pearson residuals are normalized by the variance and are expected to then be constant across the prediction range. Pearson residuals and the fitted link values are obtained by the extractor functions residuals() and predict(), each of which has a type argument that determines what values are returned
+
+Variable selection for a GLM model is similar to the process for an OLS model. Nested model tests for significance of a coefficient are preferred to Wald test of coefficients. This is due to GLM coefficients standard errors being sensitive to even small deviations from the model assumptions. It is also more accurate to obtain p-values for the GLM coefficients from nested model tests.
+
+The likelihood ratio test (LRT) is typically used to test nested models. For quasi family models an F-test is used for nested model tests (or when the fit is overdispersed or underdispersed). This use of the F statistic is appropriate if the group sizes are approximately equal.
+Which variable to select for a model may depend on the family that is being used in the model. In these cases variable selection is connected with family selection. Variable selection criteria such as AIC and BIC are generally not applicable for selecting between families.
+
+
+
+
