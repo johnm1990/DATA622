@@ -1,0 +1,315 @@
+---
+title: "DATA622_HW2"
+author: "John Mazon"
+date: "4/2/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#LOADING THE LIBRARIES
+
+library(ISLR)
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(forecast)
+
+
+```
+
+## DECISION TREE CLASSIFICATION PROBLEM
+
+
+
+Based on the the topics presented, bring a dataset of your choice and create a Decision tree where you can solve a classification or regression problem and predict the outcome of a particular feature or detail of the data used.
+Switch variables to generate 2 decision trees and compare the results. Create a random forest for regression and analyze the results.
+
+
+
+## PACKAGE: ISLR
+
+Description:
+Gas mileage, horsepower, and other information for 392 vehicles.
+Usage
+Auto
+
+Format:
+A data frame with 392 observations on the following 9 variables.
+mpg miles per gallon
+cylinders Number of cylinders between 4 and 8
+displacement Engine displacement (cu. inches)
+horsepower Engine horsepower
+weight Vehicle weight (lbs.)
+acceleration Time to accelerate from 0 to 60 mph (sec.)
+year Model year (modulo 100)
+origin Origin of car (1. American, 2. European, 3. Japanese)
+name Vehicle name
+
+The orginal data contained 408 observations but 16 observations with missing values were removed.
+
+Source:
+This dataset was taken from the StatLib library which is maintained at Carnegie Mellon University.
+The dataset was used in the 1983 American Statistical Association Exposition.
+
+## INITIAL DATA ANALYSIS
+
+
+```{r}
+# Get the list of data sets contained in package
+x <- data(package = "ISLR")
+x$results[, "Item"]
+
+colnames(x)
+```
+
+As you can see some our variables are ranging from Auto to Weekly etc
+
+
+## EXPLORING THE DATA
+
+
+```{r}
+data(Carseats)
+# Get the variable names
+names(Carseats)
+```
+
+
+```{r}
+dim(Carseats)
+head(Carseats)
+```
+
+As suggested by the instructions in the assignment I will be doing classification thetree to analyze the carseats data set. Also notice that a simulated data set containing Sales of child car seats at 400 different stores.
+You'll see 400 observations and 11 variables in the data set. 
+I am interested in predicting Sales based on the other variables in the data set. Of course, since Sales is a continuous variable, we need to make as a binary variable. You'll see the new variable, High, will take value of Yes if the Sales variable exceeds 8, and No otherwise. 
+
+
+## Classification thetrees
+
+```{r}
+
+High = ifelse(Carseats$Sales <=8, "No", "Yes")
+
+Carseats=data.frame(Carseats,High)
+
+Carseats.H <- Carseats[,-1]
+
+Carseats.H$High = as.factor(Carseats$High)
+class(Carseats.H$High)
+```
+
+
+
+```{r}
+set.seed(888)
+thetrain = sample(1:nrow(Carseats.H), 200)
+Carseats.thetrain=Carseats.H[thetrain,]
+Carseats.thetest=Carseats.H[-thetrain,]
+
+High.thetest=High[-thetrain]
+```
+
+My first step is to make classification thetree using the thetraining set to predict High using all variables except Sales (remember that High was derived from Sales). 
+
+The cp value is a stopping parameter. It helps speed up the search for splits because it can identify splits that don’t meet this criteria and prune them before going too far.
+
+If you take the approach of building really deep thetrees, the default value of 0.01 might be too restrictive.
+
+```{r}
+
+fit.thetree = rpart(High ~ ., data=Carseats.thetrain, method = "class", cp=0.008)
+fit.thetree
+```
+
+
+
+```{r}
+# Visualizing 
+rpart.plot(fit.thetree)
+```
+
+
+```{r}
+pred.thetree = predict(fit.thetree, Carseats.thetest, type = "class")
+```
+
+
+
+```{r}
+table(pred.thetree,High.thetest)
+```
+
+
+```{r}
+#plotcp(fit.thetree)
+printcp(fit.thetree)
+```
+
+
+
+
+```{r}
+# lowest cp value
+fit.thetree$cptable[which.min(fit.thetree$cptable[,"xerror"]),"CP"]
+```
+ we’ll prune the regression thetree to find the optimal value to use for cp (the complexity parameter) that leads to the lowest thetest error.
+
+Note that the optimal value for cp is the one that leads to the lowest xerror in the previous output, which represents the error on the observations from the cross-validation data.
+
+
+
+```{r}
+bestcp <-fit.thetree$cptable[which.min(fit.thetree$cptable[,"xerror"]),"CP"]
+pruned.thetree <- prune(fit.thetree, cp = bestcp)
+rpart.plot(pruned.thetree)
+```
+
+
+```{r}
+
+pred.prune = predict(pruned.thetree, Carseats.thetest, type="class")
+
+
+table(pred.prune, High.thetest)
+```
+
+
+
+
+## Regression thetree Fit
+
+```{r}
+# High variable 
+Carseats.S <- Carseats[,-12]
+
+set.seed(999)
+thetrain = sample(1:nrow(Carseats.S), 200)
+Carseats.thetrain=Carseats.S[thetrain,]
+Carseats.thetest=Carseats.S[-thetrain,]
+```
+
+
+Analysis of Variance (ANOVA) consists of calculations that provide information about levels of variability within a regression model and form a basis for thetests of significance. The basic regression line concept, DATA = FIT + RESIDUAL, is rewritten as follows: (yi - ) = ( i - ) + (yi - i)
+
+```{r}
+
+fit.thetree = rpart(Sales ~ ., data=Carseats.thetrain, method="anova", cp=0.008)
+#summary(fit.thetree)
+fit.thetree
+```
+
+
+
+```{r}
+rpart.plot(fit.thetree)
+```
+
+
+```{r}
+fit.thetree$variable.importance
+```
+
+
+
+```{r}
+pred.thetree = predict(fit.thetree, Carseats.thetest)
+```
+
+The mean squared error (MSE) tells you how close a regression line is to a set of points. It does this by taking the distances from the points to the regression line (these distances are the “errors”) and squaring them. The squaring is necessary to remove any negative signs. It also gives more weight to larger differences. It’s called the mean squared error as you’re finding the average of a set of errors. The lower the MSE, the better the forecast.
+
+```{r}
+# mean square error
+mse <- mean((pred.thetree - Carseats.thetest$Sales)^2)
+mse
+```
+
+
+
+```{r}
+# CP value
+printcp(fit.thetree)
+```
+
+
+```{r}
+bestcp <- fit.thetree$cptable[which.min(fit.thetree$cptable[,"xerror"]),"CP"]
+bestcp
+```
+The accuracy of the model on the thetest data is better when the thetree is pruned, which means that the pruned decision thetree model generalizes well and is more suited for a production environment. However, there are also other factors that can influence decision thetree model creation, such as building a thetree on an unbalanced class. These factors were not accounted for in this demonstration but it's very important for them to be examined during a live model formulation.
+
+
+```{r}
+
+pruned.thetree <- prune(fit.thetree, cp = bestcp)
+```
+
+
+```{r}
+# Visualize the thetree
+rpart.plot(pruned.thetree)
+```
+
+
+
+```{r}
+# Checking the order of variable importance
+pruned.thetree$variable.importance
+```
+
+
+
+## EVALUATING PERFORMANCE
+
+With the decision thetree, it can enable validation since it is the best predictive model. In fact, it finds use of making quantitative analysis of the business platform. In addition, it can validate results of the statistical thetests. Nevertheless, it can support naturally the classification of problems with several classes by modification process.
+
+```{r}
+# Use the thetest data to evaluate performance of pruned regression thetree
+pred.prune = predict(pruned.thetree, Carseats.thetest)
+
+# Calcualte the MSE for the pruned thetree
+mse <- mean((pred.prune - Carseats.thetest$Sales)^2)
+mse
+```
+
+
+## RANDOM FOREST
+
+Random Forest is based on the bagging algorithm and uses Ensemble Learning technique. It creates as many thetrees on the subset of the data and combines the output of all the thetrees. In this way it reduces overfitting problem in decision thetrees and also reduces the variance and therefore improves the accuracy.
+
+Random Forest can be used to solve both classification as well as regression problems.
+
+Random Forest works well with both categorical and continuous variables.
+
+Random Forest can automatically handle missing values.
+
+No feature scaling required: No feature scaling (standardization and normalization) required in case of Random Forest as it uses rule based approach instead of distance calculation.
+
+```{r}
+# random forest using all predictors
+# using 
+modFit.rf <- randomForest::randomForest(Carseats.thetrain$Sales ~ ., data = Carseats.thetrain[,c(1:11)])
+
+```
+
+
+```{r}
+modFit.rf
+```
+
+```{r}
+forest_pred <- predict(modFit.rf, Carseats.thetest)
+table(forest_pred)
+
+
+```
+
+
+
+
+Based on real cases where desicion thetrees went wrong, and ‘the bad & ugly’ aspects of decision thetrees (https://decizone.com/blog/the-good-the-bad-the-ugly-of-using-decision-thetrees), how can you change this perception when using the decision thetree you created to solve a real problem?
+ 
+ In my opinion, Decision thetree is better when the dataset have a “Feature” that is really important to take a decision. Random Forest, select some “Features” randomly to build the thetrees, if a “Feature” is important, sometimes Random Forest will build thetrees that will not have the significance that the“Feature” has in the final decision.
+I think that Random Forest is good to avoid low quality of data, example: Imagine a dataset that shows (all houses that doors are green have a high cost), in Decision thetrees this is a bias in the data that can be avoid in Random Forest
+ 
