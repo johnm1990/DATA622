@@ -1,0 +1,428 @@
+---
+title: "DATA622_HW3"
+author: "John Mazon"
+date: "4/2/2022"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#LOADING THE LIBRARIES
+
+library(ISLR)
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(forecast)
+library(e1071)
+#library(Hmisc)
+library(skimr)
+library(tidyverse)
+```
+
+## HW 3 (SVM BOTTOM OF PAGE) - 
+
+
+Perform an analysis of the dataset used in Homework #2 using the SVM algorithm.Compare the results with the results from previous homework.
+Based on articles
+
+    https://www.hindawi.com/journals/complexity/2021/5550344/
+    https://www.ncbi.nlm.nih.gov/pmc/articles/PMC8137961/
+
+Search for academic content (at least 3 articles) that compare the use of decision trees vs SVMs in your current area of expertise.
+Which algorithm is recommended to get more accurate results? Is it better for classification or regression scenarios? Do you agree with the recommendations? Why?
+Format: R file & essay
+Due date: Sunday, April 24, 2022, end of day
+
+
+
+
+## HW #2
+## DECISION TREE CLASSIFICATION PROBLEM
+
+Based on the the topics presented, bring a dataset of your choice and create a Decision tree where you can solve a classification or regression problem and predict the outcome of a particular feature or detail of the data used.
+Switch variables to generate 2 decision trees and compare the results. Create a random forest for regression and analyze the results.
+
+
+
+## PACKAGE: ISLR
+
+Description:
+Gas mileage, horsepower, and other information for 392 vehicles.
+Usage
+Auto
+
+Format:
+A data frame with 392 observations on the following 9 variables.
+mpg miles per gallon
+cylinders Number of cylinders between 4 and 8
+displacement Engine displacement (cu. inches)
+horsepower Engine horsepower
+weight Vehicle weight (lbs.)
+acceleration Time to accelerate from 0 to 60 mph (sec.)
+year Model year (modulo 100)
+origin Origin of car (1. American, 2. European, 3. Japanese)
+name Vehicle name
+
+The orginal data contained 408 observations but 16 observations with missing values were removed.
+
+Source:
+This dataset was taken from the StatLib library which is maintained at Carnegie Mellon University.
+The dataset was used in the 1983 American Statistical Association Exposition.
+
+## INITIAL DATA ANALYSIS
+
+
+```{r}
+# Get the list of data sets contained in package
+x <- data(package = "ISLR")
+x$results[, "Item"]
+
+colnames(x)
+```
+
+As you can see some our variables are ranging from Auto to Weekly etc
+
+
+## EXPLORING THE DATA
+
+
+```{r}
+data(Carseats)
+# Get the variable names
+names(Carseats)
+```
+
+
+```{r}
+dim(Carseats)
+head(Carseats)
+```
+
+As suggested by the instructions in the assignment I will be doing classification thetree to analyze the carseats data set. Also notice that a simulated data set containing Sales of child car seats at 400 different stores.
+You'll see 400 observations and 11 variables in the data set.
+I am interested in predicting Sales based on the other variables in the data set. Of course, since Sales is a continuous variable, we need to make as a binary variable. You'll see the new variable, High, will take value of Yes if the Sales variable exceeds 8, and No otherwise.
+
+
+## Classification thetrees
+
+```{r}
+
+High = ifelse(Carseats$Sales <=8, "No", "Yes")
+
+Carseats=data.frame(Carseats,High)
+
+Carseats.H <- Carseats[,-1]
+
+Carseats.H$High = as.factor(Carseats$High)
+class(Carseats.H$High)
+```
+
+
+
+```{r}
+set.seed(888)
+thetrain = sample(1:nrow(Carseats.H), 200)
+Carseats.thetrain=Carseats.H[thetrain,]
+Carseats.thetest=Carseats.H[-thetrain,]
+
+High.thetest=High[-thetrain]
+```
+
+My first step is to make classification thetree using the thetraining set to predict High using all variables except Sales (remember that High was derived from Sales).
+
+The cp value is a stopping parameter. It helps speed up the search for splits because it can identify splits that don’t meet this criteria and prune them before going too far.
+
+If you take the approach of building really deep thetrees, the default value of 0.01 might be too restrictive.
+
+```{r}
+
+fit.thetree = rpart(High ~ ., data=Carseats.thetrain, method = "class", cp=0.008)
+fit.thetree
+```
+
+
+
+```{r}
+# Visualizing
+rpart.plot(fit.thetree)
+```
+
+
+```{r}
+pred.thetree = predict(fit.thetree, Carseats.thetest, type = "class")
+```
+
+
+
+```{r}
+table(pred.thetree,High.thetest)
+```
+
+
+```{r}
+#plotcp(fit.thetree)
+printcp(fit.thetree)
+```
+
+
+
+
+```{r}
+# lowest cp value
+fit.thetree$cptable[which.min(fit.thetree$cptable[,"xerror"]),"CP"]
+```
+ we’ll prune the regression thetree to find the optimal value to use for cp (the complexity parameter) that leads to the lowest thetest error.
+
+Note that the optimal value for cp is the one that leads to the lowest xerror in the previous output, which represents the error on the observations from the cross-validation data.
+
+
+
+```{r}
+bestcp <-fit.thetree$cptable[which.min(fit.thetree$cptable[,"xerror"]),"CP"]
+pruned.thetree <- prune(fit.thetree, cp = bestcp)
+rpart.plot(pruned.thetree)
+```
+
+
+```{r}
+
+pred.prune = predict(pruned.thetree, Carseats.thetest, type="class")
+
+
+table(pred.prune, High.thetest)
+```
+
+
+
+
+## Regression thetree Fit
+
+```{r}
+# High variable
+Carseats.S <- Carseats[,-12]
+
+set.seed(999)
+thetrain = sample(1:nrow(Carseats.S), 200)
+Carseats.thetrain=Carseats.S[thetrain,]
+Carseats.thetest=Carseats.S[-thetrain,]
+```
+
+
+Analysis of Variance (ANOVA) consists of calculations that provide information about levels of variability within a regression model and form a basis for thetests of significance. The basic regression line concept, DATA = FIT + RESIDUAL, is rewritten as follows: (yi - ) = ( i - ) + (yi - i)
+
+```{r}
+
+fit.thetree = rpart(Sales ~ ., data=Carseats.thetrain, method="anova", cp=0.008)
+#summary(fit.thetree)
+fit.thetree
+```
+
+
+
+```{r}
+rpart.plot(fit.thetree)
+```
+
+
+```{r}
+fit.thetree$variable.importance
+```
+
+
+
+```{r}
+pred.thetree = predict(fit.thetree, Carseats.thetest)
+```
+
+The mean squared error (MSE) tells you how close a regression line is to a set of points. It does this by taking the distances from the points to the regression line (these distances are the “errors”) and squaring them. The squaring is necessary to remove any negative signs. It also gives more weight to larger differences. It’s called the mean squared error as you’re finding the average of a set of errors. The lower the MSE, the better the forecast.
+
+```{r}
+# mean square error
+mse <- mean((pred.thetree - Carseats.thetest$Sales)^2)
+mse
+```
+
+
+
+```{r}
+# CP value
+printcp(fit.thetree)
+```
+
+
+```{r}
+bestcp <- fit.thetree$cptable[which.min(fit.thetree$cptable[,"xerror"]),"CP"]
+bestcp
+```
+The accuracy of the model on the thetest data is better when the thetree is pruned, which means that the pruned decision thetree model generalizes well and is more suited for a production environment. However, there are also other factors that can influence decision thetree model creation, such as building a thetree on an unbalanced class. These factors were not accounted for in this demonstration but it's very important for them to be examined during a live model formulation.
+
+
+```{r}
+
+pruned.thetree <- prune(fit.thetree, cp = bestcp)
+```
+
+
+```{r}
+# Visualize the thetree
+rpart.plot(pruned.thetree)
+```
+
+
+
+```{r}
+# Checking the order of variable importance
+pruned.thetree$variable.importance
+```
+
+
+
+## EVALUATING PERFORMANCE
+
+With the decision thetree, it can enable validation since it is the best predictive model. In fact, it finds use of making quantitative analysis of the business platform. In addition, it can validate results of the statistical thetests. Nevertheless, it can support naturally the classification of problems with several classes by modification process.
+
+```{r}
+# Use the thetest data to evaluate performance of pruned regression thetree
+pred.prune = predict(pruned.thetree, Carseats.thetest)
+
+# Calcualte the MSE for the pruned thetree
+mse <- mean((pred.prune - Carseats.thetest$Sales)^2)
+mse
+```
+
+
+## RANDOM FOREST
+
+Random Forest is based on the bagging algorithm and uses Ensemble Learning technique. It creates as many thetrees on the subset of the data and combines the output of all the thetrees. In this way it reduces overfitting problem in decision thetrees and also reduces the variance and therefore improves the accuracy.
+
+Random Forest can be used to solve both classification as well as regression problems.
+
+Random Forest works well with both categorical and continuous variables.
+
+Random Forest can automatically handle missing values.
+
+No feature scaling required: No feature scaling (standardization and normalization) required in case of Random Forest as it uses rule based approach instead of distance calculation.
+
+```{r}
+# random forest using all predictors
+# using
+modFit.rf <- randomForest::randomForest(Carseats.thetrain$Sales ~ ., data = Carseats.thetrain[,c(1:11)])
+
+```
+
+
+```{r}
+modFit.rf
+```
+
+```{r}
+forest_pred <- predict(modFit.rf, Carseats.thetest)
+table(forest_pred)
+
+
+```
+
+
+
+### SVM
+#install.packages('skimr')
+
+```{r}
+
+skim(Carseats.thetrain)
+```
+
+```{r}
+
+set.seed(69)
+
+my_svm<-svm(Income~., data=Carseats.thetrain, kernel="linear", cost=10,scale=TRUE)
+
+summary(my_svm)
+
+
+```
+ 
+ 
+```{r}
+print(my_svm)
+
+```
+# PRED
+
+```{r}
+set.seed(888)
+
+pred <- predict(my_svm, newdata=Carseats.thetest)
+
+print(my_svm)
+
+plot(my_svm, Carseats.thetest)
+```
+
+
+
+
+
+## RMSE
+
+```{r}
+
+
+Carseats.thetest$pred <- predict(my_svm, newdata=Carseats.thetest)
+
+the_rmse <- Carseats.thetrain %>% 
+  mutate(residual = Income - pred) %>%
+  summarize(rmse = sqrt(mean(residual^2)))
+
+
+print(the_rmse)
+
+```
+
+### Search for academic content (at least 3 articles) that compare the use of decision trees vs SVMs in your current area of expertise.
+
+1.
+A Complete View of Decision Trees and SVM in Machine Learning
+https://towardsdatascience.com/a-complete-view-of-decision-trees-and-svm-in-machine-learning-f9f3d19a337b
+
+summary: SVM uses kernel trick to solve non-linear problems whereas decision trees derive hyper-rectangles in input space to solve the problem. Decision trees are better for categorical data and it deals colinearity better than SVM.
+
+
+2.
+A Comparison of Support Vector Machine and Decision Tree Classifications
+https://scialert.net/fulltext/?doi=itj.2009.64.70
+
+summary: The biggest difference between the two algorithms is that SVM uses the kernel trick to turn a linearly nonseparable problem into a linearly separable one (unless of course we use the linear kernel), while decision trees (and forests based on them, and boosted trees, both to a lesser extent due to the nature of the ensemble algorithms) split the input space into hyper-rectangles according to the target.
+Usually one will work better than another in a given situation, but it's hard to tell in most cases in high dimensional spaces unless there is something about the data that suggests one over the other. This is the preferred method, but hardly obvious in most cases.Most of the time, people use a validation set to not only optimize hyperperameters but also to choose between algorithms. It's not perfect, but often it works.
+Oh - if you have categories in your inputs, you can't use SVMs. They only work with numeric data.
+
+3.
+Comparing Support Vector Machines and Decision Trees for Classification
+https://www.codementor.io/blog/text-classification-6mmol0q8oj
+
+summary:  In the end, if you have the computational resources to do so, try both. See which class of models performs best on your holdout/validation/test dataset(s). If your data is highly structured, gradient boosting methods will likely perform very well. And oftentimes, you can train a high-performing booster in less time than it takes to fit an SVM.If your data includes categorical features, just be aware that the performance of tree-based methods often suffers if these features are one-hot encoded (see here for a great discussion of why this occurs). So either use another encoding strategy such as target encoding, or use a library with native handling of categorical features, such as H20 (see here).
+
+### Which algorithm is recommended to get more accurate results? Is it better for classification or regression scenarios? Do you agree with the recommendations? Why?
+
+If we have more categorical data then first I will prefer to go with decisions tree. There are many advantage with decisions tree.Its highly interpretive.Its automatically handled the multicolinarty problem.If we have more sparse data then I will prefer to go with SVM.Some people ask why is svm not so good as decision tree on the same data?
+Possibilities include the use of an inappropriate kernel (e.g. a linear kernel for a non-linear problem), poor choice of kernel and regularisation hyper-parameters. Good model selection (choice of kernel and hyper-parameter tuning is the key to getting good performance from SVMs, they can only be expected to give good results when used correctly).
+SVMs often do take a long time to train, this is especially true when the choice of kernel and particularly regularisation parameter means that almost all the data end up as support vectors (the sparsity of SVMs is a handy by-product, nothing more).Lastly, there is no a-priori superiority for any classifier system over the others, so the best classifier for a particular task is itself task-dependent. However there is more compelling theory for the SVM that suggests it is likely to be better choice than many other approaches for many problems.
+
+
+
+
+### Conclusion
+
+SVM is one of the supervised algorithms mostly used for classification problems. This article will give an idea about its advantages in general.
+SVM is very helpful method if we don’t have much idea about the data. It can be used for the data such as image, text, audio etc.It can be used for the data that is not regularly distributed and have unknown distribution.
+The SVM provides a very useful technique within it known as kernel and by the application of associated kernel function we can solve any complex problem.
+    Kernel provides choosing a function which is not necessarily linear and can have different forms in terms of different data it operates on and thus is a non-parametric function.
+In Classification problems, there is a strong assumption that is Data have samples that are linearly separable but with the introduction of kernel, Input data can be converted into High dimensional data avoiding the need of this assumption.
+    K(x1, x2)=〈f(x1), f(x2)〉Where K is the kernel function, x1, x2 are n-dimensional inputs and f is a function that is used to map n-dimensional space into m-dimensional space and 〈x1, x2〉is used to specify/indicate the dot product
+SVM generally do not suffer condition of overfitting and performs well when there is a clear indication of separation between classes. SVM can be used when total no of samples is less than the no of dimensions and performs well in terms of memory.
+SVM performs and generalized well on the out of sample data. Due to this as it performs well on out of generalization sample data SVM proves itself to be fast as the sure fact says that in SVM for the classification of one sample , the kernel function is evaluated and performed for each and every support vectors.
+The other important advantage of SVM Algorithm is that it is able to handle High dimensional data too and this proves to be a great help taking into account its usage and application in Machine learning field.
