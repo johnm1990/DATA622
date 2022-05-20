@@ -1,0 +1,272 @@
+---
+title: "DATA622_FINALPROJECT"
+author: "John Mazon"
+date: "5/16/2022"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+
+rm(list = ls())
+
+library(tidyverse)
+#library(dplyr)
+#library(tidyr)
+library(forecast)
+library(fpp)
+library(fpp3)
+library(fpp2)
+# library(glue)
+# library(caret)
+# library(caTools)
+# library(pls)
+# library(Amelia)
+# library(RANN)
+library(lubridate)
+library(feasts)
+library(cowplot)
+library(factoextra)
+library(FactoMineR)
+library(rpart)
+library(rpart.plot)
+```
+
+## Homework 4 (Final project)
+
+# DATA INITIAL SUMMARY
+
+DATA SOURCE: https://www.kaggle.com/datasets/rounakbanik/pokemon
+
+## LABELS
+
+ARTS & Entertainment - Earth and Nature - Games - Video Games - Anime - Pop Culture
+
+## Data Source
+
+Activity Overview
+activity stats
+Views
+307518
+Downloads
+41644
+Download per view ratio
+0.14
+Total unique contributors
+157
+
+## Description
+Context
+
+This dataset contains information on all 802 Pokemon from all Seven Generations of Pokemon. The information contained in this dataset include Base Stats, Performance against Other Types, Height, Weight, Classification, Egg Steps, Experience Points, Abilities, etc. The information was scraped from http://serebii.net/
+
+# DATA EXPLORATION
+
+```{r}
+pkm_df <- read.csv("https://raw.githubusercontent.com/johnm1990/DATA622/main/pokemon.csv")
+
+head(pkm_df)
+
+```
+
+
+# DATA PREPARATION
+
+
+```{r}
+glimpse(pkm_df)
+
+```
+
+Pre-processing to identify legendary by logical
+
+```{r}
+
+pkm_df <- pkm_df %>% mutate(is_legendary = as.factor(if_else(is_legendary == 1, 
+    "yes", "no")))
+
+```
+
+We can now check the levels as needed
+We check for NA
+```{r}
+levels(pkm_df$capture_rate)
+
+pkm_df <- pkm_df %>% mutate(capture_rate = if_else(capture_rate == "30 (Meteorite)255 (Core)",
+    30, as.numeric(capture_rate)), generation = as.factor(generation))
+
+colSums(is.na(pkm_df))
+```
+
+Since we see perce_male variable has a few missing value, we will remove them in order to conserver data.
+
+```{r}
+pkm_df2 <- pkm_df %>% select_if(~is.numeric(.)) %>% select(-c(pokedex_number, percentage_male)) %>% 
+    mutate(legendary = pkm_df$is_legendary, name = pkm_df$name) %>% na.omit()
+pkm_df1 <- pkm_df2 %>% select(-c(name, legendary))
+
+```
+
+
+
+```{r}
+ggplot(pkm_df, aes(base_egg_steps, base_total, color = pkm_df$legendary, size = capture_rate)) + 
+    geom_point(alpha = 0.5) + theme_minimal()
+
+```
+
+
+```{r}
+pkm_df %>% filter(is_legendary == "no") %>% group_by(type1, type2) %>% summarise(base = mean(base_total)) %>% 
+    ggplot(aes(type1, type2, fill = base)) + scale_fill_viridis_c(option = "B") + 
+    geom_tile(color = "yellow") + theme_minimal()
+```
+
+```{r}
+p1 <- ggplot(pkm_df, aes(is_legendary, height_m, fill = is_legendary)) + geom_boxplot(show.legend = F) + 
+    theme_minimal() + labs(title = "Height")
+
+p2 <- ggplot(pkm_df, aes(is_legendary, weight_kg, fill = is_legendary)) + geom_boxplot(show.legend = F) + 
+    theme_minimal() + labs(title = "Weight")
+
+p3 <- ggplot(pkm_df, aes(is_legendary, speed, fill = is_legendary)) + geom_boxplot(show.legend = F) + 
+    theme_minimal() + labs(title = "Speed")
+
+p4 <- ggplot(pkm_df, aes(is_legendary, hp, fill = is_legendary)) + geom_boxplot() + 
+    theme_minimal() + theme(legend.position = "bottom") + labs(title = "Health Point (HP)")
+
+plot_grid(p1, p2, p3, p4)
+
+```
+
+
+
+
+# K-MEANS CLUSTERING
+
+
+
+
+
+using KMEANS method
+```{r}
+
+set.seed(111)
+km <- kmeans(pkm_df1, centers = 4)
+head(km)
+
+```
+
+# PCA
+
+
+```{r}
+poke_pca <- PCA(pkm_df2 %>% select(-name), scale.unit = T, ncp = 31, graph = F, 
+    quali.sup = 32)
+
+summary(poke_pca)
+
+# FIT KMEANS FOR PKM
+fit <- kmeans(pkm_df1[,-1], 3, iter.max=1000)
+
+#capture rate barplot
+barplot(table(pkm_df1$capture_rate), col="#336699") #plot
+
+
+#pca <- prcomp(pkm_df1[,-1], scale=TRUE) #principle component analysis
+pca_data <- mutate(fortify(pkm_df1), col=fit$cluster)
+#We want to examine the cluster memberships for each #observation - see last column
+
+ggplot(pca_data) + geom_point(aes(x=speed, y=height_m, fill=factor(col)),
+size=3, col="#7f7f7f", shape=21) + theme_bw(base_family="Helvetica")
+```
+NICE CLUSTER VISUALIZATION OF X AXIS OF SPEED AND Y-AXIS OF HEIGHT_M
+
+
+PCA Visualize variance
+```{r}
+
+fviz_eig(poke_pca, ncp = 15, addlabels = T, main = "Variance explained by each dimensions")
+```
+
+This is so you can see that we can segment/extr. the values of PC1 to PC13 for new data frame. If needed can be used to demonstrate supervised learning
+```{r}
+df_pca <- data.frame(poke_pca$ind$coord[, 1:13]) %>% bind_cols(cluster = as.factor(km$cluster)) %>% 
+    select(cluster, 1:13)
+head(df_pca)
+
+```
+
+```{r}
+theme_set(theme_bw())
+
+h.pcaScores <- data.frame(df_pca[, 1:3]) # we only need the first two principal components
+ggplot(h.pcaScores, aes(y = Dim.1, x = Dim.2)) + geom_point(col = 'tomato2')
+
+```
+
+From a set of p=7 features, we have now plotted our pkm data into a low-dimensional scatter plot where essentially p=2. You can see some clusters within this scatter plot, although they are not too apparent.
+
+
+# TREES
+## CLASSIFICATION
+
+```{r}
+pkm_df_x = pkm_df[3:8]
+class.tree <- rpart(against_dark ~ ., data = pkm_df_x, 
+                    control = rpart.control(maxdepth = 2, minsplit = 10), method = "class")
+class.tree
+```
+
+```{r}
+prp(class.tree, type = 1, extra = 1, split.font = 1, varlen = -10)  
+```
+
+
+```{r}
+pkm_df_x$against_dark = factor(pkm_df_x$against_dark, levels = c(0, 1))
+```
+
+
+```{r}
+library(caTools)
+set.seed(123)
+split = sample.split(pkm_df_x$against_dark, SplitRatio = 0.75)
+training_set = subset(pkm_df_x, split == TRUE)
+test_set = subset(pkm_df_x, split == FALSE)
+```
+
+```{r}
+library(rpart)
+classifier = rpart(formula = against_dragon ~ .,
+                   data = training_set)
+
+```
+
+
+```{r}
+plot(classifier)
+text(classifier)
+
+```
+
+
+
+# CONCLUSION
+
+
+
+We can pull some conclusions regarding our dataset based on the previous cluster and principle component analysis. For example,
+we can separate our data into at least 4 clusters based on all of the numerical features, with more than 87% of the total sum of squares come from the distance of observations between clusters. Also note Cluster 2 has the unique traits that it has the most (if not all) of the legendary Pokemon, which make it the best overall in base_total battle stats.
+We can reduce our dimensions from 31 features into just 13 dimensions and still retain more than 80% of the variances using PCA. The dimensionality reduction can be useful if we apply the new PCA for machine learning applications. Moreover,
+However, as we have seen, the dimensionality reduction is not enough for us to visualize the clustering of our data, indicated by overlapping of clusters if we only use the first 2 dimensions. Perhaps the result from the gap statistic method is true, that there is only 1 big cluster
+
+
+
+
+
+
